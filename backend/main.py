@@ -39,13 +39,19 @@ load_dotenv()
 
 app = FastAPI(title="Nexus Shield AI", version="1.0.0")
 
-allowed_origins = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173"
+    ).split(",")
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
