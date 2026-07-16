@@ -51,12 +51,11 @@ def _should_send_alert(
     if previous_issues is None or previous_score is None:
         return False
 
+    if current_score != previous_score:
+        return True
+
     new_issues = _find_new_issues(current_issues, previous_issues)
     if new_issues:
-        return True
-    if _significant_score_drop(current_score, previous_score):
-        return True
-    if scheduled and current_score != previous_score:
         return True
     return False
 
