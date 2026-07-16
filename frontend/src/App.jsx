@@ -138,6 +138,8 @@ export default function App() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(false);
+  const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState("");
 
   const isAuthenticated = Boolean(user && token);
 
@@ -167,6 +169,7 @@ export default function App() {
   useEffect(() => {
     if (user) {
       setEmailAlertsEnabled(Boolean(user.email_alerts_enabled));
+      setWeeklySummaryEnabled(Boolean(user.weekly_email_enabled));
     }
   }, [user]);
 
@@ -371,11 +374,80 @@ export default function App() {
     }
   }
 
+  async function toggleWeeklySummary() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/weekly-summary`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ weekly_email_enabled: !weeklySummaryEnabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to update weekly summary settings.");
+      }
+      setWeeklySummaryEnabled(data.weekly_email_enabled);
+      setUser((prev) => ({ ...prev, weekly_email_enabled: data.weekly_email_enabled }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendTestEmail() {
+    setError(null);
+    setTestEmailStatus("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/test-email`, {
+        method: "POST",
+        headers: authHeaders,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to send test email.");
+      }
+      setTestEmailStatus("Test email sent successfully.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendWeeklySummaryNow() {
+    setError(null);
+    setTestEmailStatus("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/weekly-summary`, {
+        method: "POST",
+        headers: authHeaders,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to send weekly summary.");
+      }
+      setTestEmailStatus("Weekly summary sent successfully.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function logout() {
     window.localStorage.removeItem("nexus_shield_token");
     setToken(null);
     setUser(null);
     setHistory([]);
+    setEmailAlertsEnabled(false);
+    setWeeklyEmailEnabled(false);
   }
 
   function loadHistoryItem(scan) {
@@ -528,11 +600,32 @@ export default function App() {
             <div>
               <strong>Email alerts</strong>
               <p>Receive an email whenever your score changes or a new issue is detected.</p>
+              <p className="alert-subtext">Weekly summary is {weeklySummaryEnabled ? "enabled" : "disabled"}.</p>
             </div>
-            <button type="button" className="secondary-btn" onClick={toggleEmailAlerts} disabled={loading}>
-              {emailAlertsEnabled ? "Disable alerts" : "Enable alerts"}
-            </button>
+            <div className="alert-settings-actions">
+              <button type="button" className="secondary-btn" onClick={toggleEmailAlerts} disabled={loading}>
+                {emailAlertsEnabled ? "Disable alerts" : "Enable alerts"}
+              </button>
+              <button type="button" className="secondary-btn" onClick={toggleWeeklySummary} disabled={loading}>
+                {weeklySummaryEnabled ? "Disable weekly" : "Enable weekly"}
+              </button>
+              <button type="button" className="secondary-btn" onClick={sendTestEmail} disabled={loading}>
+                Send test email
+              </button>
+            </div>
           </div>
+          {weeklySummaryEnabled && (
+            <div className="alert-settings-card" style={{ marginTop: "12px" }}>
+              <div>
+                <strong>Weekly summary</strong>
+                <p>Send a summary of your recent scans to your inbox.</p>
+              </div>
+              <button type="button" className="secondary-btn" onClick={sendWeeklySummaryNow} disabled={loading}>
+                Send weekly summary now
+              </button>
+            </div>
+          )}
+          {testEmailStatus && <div className="success-banner">{testEmailStatus}</div>}
         </section>
       )}
 
