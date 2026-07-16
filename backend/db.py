@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    email_alerts_enabled INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS scans (
@@ -50,31 +51,64 @@ def initialize_db() -> None:
         conn.executescript(SCHEMA)
         conn.commit()
 
+        existing_columns = [row["name"] for row in conn.execute(
+            "PRAGMA table_info(users)").fetchall()]
+        if "email_alerts_enabled" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
 
-def create_user(email: str, password_hash: str) -> dict[str, Any]:
+
+def create_user(email: str, password_hash: str, email_alerts_enabled: bool = False) -> dict[str, Any]:
     now = datetime.now().isoformat()
     with _connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
-            (email.lower(), password_hash, now),
+            "INSERT INTO users (email, password_hash, created_at, email_alerts_enabled) VALUES (?, ?, ?, ?)",
+            (email.lower(), password_hash, now, 1 if email_alerts_enabled else 0),
         )
         conn.commit()
         user_id = cursor.lastrowid
-        return {"id": user_id, "email": email.lower(), "created_at": now}
+        return {
+            "id": user_id,
+            "email": email.lower(),
+            "created_at": now,
+            "email_alerts_enabled": email_alerts_enabled,
+        }
 
 
 def get_user_by_email(email: str) -> dict[str, Any] | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?",
                            (email.lower(),)).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    return {
+        **dict(row),
+        "email_alerts_enabled": bool(row["email_alerts_enabled"]),
+    }
 
 
 def get_user_by_id(user_id: int) -> dict[str, Any] | None:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?",
                            (user_id,)).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    return {
+        **dict(row),
+        "email_alerts_enabled": bool(row["email_alerts_enabled"]),
+    }
+
+
+def set_user_alert_preferences(user_id: int, email_alerts_enabled: bool) -> bool:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE users SET email_alerts_enabled = ? WHERE id = ?",
+            (1 if email_alerts_enabled else 0, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def save_scan(user_id: int, scan_data: dict[str, Any]) -> int:
@@ -132,6 +166,32 @@ def get_scan(scan_id: int, user_id: int) -> dict[str, Any] | None:
         row = conn.execute(
             "SELECT * FROM scans WHERE id = ? AND user_id = ?",
             (scan_id, user_id),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "url": row["url"],
+        "normalized_url": row["normalized_url"],
+        "score": row["score"],
+        "status": row["status"],
+        "issue_count": row["issue_count"],
+        "https_enabled": bool(row["https_enabled"]),
+        "response_time_ms": row["response_time_ms"],
+        "headers_present": json.loads(row["headers_present"]),
+        "headers_missing": json.loads(row["headers_missing"]),
+        "issues": json.loads(row["issues"]),
+        "error": row["error"],
+        "scanned_at": row["scanned_at"],
+        "normalized_url": row["normalized_url"],
+    }
+
+
+def get_latest_scan_for_url(user_id: int, normalized_url: str) -> dict[str, Any] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM scans WHERE user_id = ? AND normalized_url = ? ORDER BY scanned_at DESC LIMIT 1",
+            (user_id, normalized_url),
         ).fetchone()
     if not row:
         return None
