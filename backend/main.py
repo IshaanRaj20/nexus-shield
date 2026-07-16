@@ -40,11 +40,8 @@ load_dotenv()
 app = FastAPI(title="Nexus Shield AI", version="1.0.0")
 
 allowed_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:5173"
-    ).split(",")
+    "https://shield.zenithish.com",
+    "http://localhost:5173"
 ]
 
 app.add_middleware(
