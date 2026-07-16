@@ -60,27 +60,34 @@ def initialize_db() -> None:
             conn.commit()
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 def create_user(email: str, password_hash: str, email_alerts_enabled: bool = False) -> dict[str, Any]:
+    normalized_email = _normalize_email(email)
     now = datetime.now().isoformat()
     with _connect() as conn:
         cursor = conn.execute(
             "INSERT INTO users (email, password_hash, created_at, email_alerts_enabled) VALUES (?, ?, ?, ?)",
-            (email.lower(), password_hash, now, 1 if email_alerts_enabled else 0),
+            (normalized_email, password_hash, now,
+             1 if email_alerts_enabled else 0),
         )
         conn.commit()
         user_id = cursor.lastrowid
         return {
             "id": user_id,
-            "email": email.lower(),
+            "email": normalized_email,
             "created_at": now,
             "email_alerts_enabled": email_alerts_enabled,
         }
 
 
 def get_user_by_email(email: str) -> dict[str, Any] | None:
+    normalized_email = _normalize_email(email)
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?",
-                           (email.lower(),)).fetchone()
+                           (normalized_email,)).fetchone()
     if not row:
         return None
     return {
