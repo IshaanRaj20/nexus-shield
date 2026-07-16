@@ -80,10 +80,11 @@ function IssueCard({ issue }) {
   return (
     <div className={`issue-card ${issue.severity}`}>
       <div className="issue-top">
-        <strong>{issue.category}</strong>
+        <strong>{issue.name || issue.category}</strong>
         <span className="issue-severity">{issue.severity}</span>
       </div>
-      <p className="issue-explanation">{issue.explanation}</p>
+      <p className="issue-explanation"><strong>What it means:</strong> {issue.meaning || issue.explanation}</p>
+      <p className="issue-why"><strong>Why it matters:</strong> {issue.why}</p>
       <div className="issue-fix">
         <strong>Fix:</strong>
         <span>{issue.fix}</span>
@@ -121,6 +122,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState("signup");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(false);
 
   const isAuthenticated = Boolean(user && token);
 
@@ -153,6 +155,12 @@ export default function App() {
         .catch(() => setHistory([]));
     }
   }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    if (user) {
+      setEmailAlertsEnabled(Boolean(user.email_alerts_enabled));
+    }
+  }, [user]);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -187,7 +195,7 @@ export default function App() {
       }
       setResult(data);
       if (isAuthenticated) {
-        setHistory((prev) => [data, ...prev.filter((item) => item.scan_id !== data.scan_id)].slice(0, 8));
+        setHistory((prev) => [data, ...prev.filter((item) => item.normalized_url !== data.normalized_url)].slice(0, 8));
       }
     } catch (err) {
       setError(err.message || "Something went wrong while scanning. Is the backend running?");
@@ -278,6 +286,31 @@ export default function App() {
 
   function handleAuthSubmit(path) {
     authAction(path, { email: authEmail.trim(), password: authPassword });
+  }
+
+  async function toggleEmailAlerts() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/alerts`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ email_alerts_enabled: !emailAlertsEnabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to update alert settings.");
+      }
+      setEmailAlertsEnabled(data.email_alerts_enabled);
+      setUser((prev) => ({ ...prev, email_alerts_enabled: data.email_alerts_enabled }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function logout() {
@@ -426,6 +459,21 @@ export default function App() {
 
           <div className="report-actions">
             <button className="secondary-btn" onClick={downloadReport}>Download report</button>
+          </div>
+        </section>
+      )}
+
+      {isAuthenticated && (
+        <section className="alert-settings-panel">
+          <div className="section-label">Security email alerts</div>
+          <div className="alert-settings-card">
+            <div>
+              <strong>Email alerts</strong>
+              <p>Receive an email when a new issue appears or your score drops significantly.</p>
+            </div>
+            <button type="button" className="secondary-btn" onClick={toggleEmailAlerts} disabled={loading}>
+              {emailAlertsEnabled ? "Disable alerts" : "Enable alerts"}
+            </button>
           </div>
         </section>
       )}
