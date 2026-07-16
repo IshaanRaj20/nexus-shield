@@ -125,6 +125,9 @@ def _require_authenticated_user(authorization: str | None = Header(None)) -> dic
 async def health():
     return {"status": "ok"}
 
+@app.head("/api/health")
+async def health_head():
+    return
 
 async def _run_full_scan(req: ScanRequest):
     if not req.consent:
