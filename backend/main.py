@@ -13,6 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, status
@@ -31,9 +32,11 @@ from db import (
     get_user_by_id,
     initialize_db,
     list_scans,
+    list_scans_since,
     save_scan,
     set_scan_notifications,
     set_user_alert_preferences,
+    set_user_weekly_preferences,
 )
 from report import build_report_text
 from scanner import scan_url
@@ -120,6 +123,10 @@ class AskRequest(BaseModel):
 
 class AlertPreferencesRequest(BaseModel):
     email_alerts_enabled: bool
+
+
+class WeeklySummaryPreferencesRequest(BaseModel):
+    weekly_email_enabled: bool
 
 
 class ScanNotificationRequest(BaseModel):
@@ -216,6 +223,7 @@ async def me(user: dict = Depends(_require_authenticated_user)):
         "id": user["id"],
         "email": user["email"],
         "email_alerts_enabled": user.get("email_alerts_enabled", False),
+        "weekly_email_enabled": user.get("weekly_email_enabled", False),
     }
 
 
@@ -229,6 +237,49 @@ async def update_alert_preferences(
         raise HTTPException(
             status_code=500, detail="Unable to update alert preferences.")
     return {"email_alerts_enabled": req.email_alerts_enabled}
+
+
+@app.patch("/api/user/weekly-summary")
+async def update_weekly_summary_preferences(
+    req: WeeklySummaryPreferencesRequest,
+    user: dict = Depends(_require_authenticated_user),
+):
+    success = set_user_weekly_preferences(user["id"], req.weekly_email_enabled)
+    if not success:
+        raise HTTPException(
+            status_code=500, detail="Unable to update weekly summary preferences.")
+    return {"weekly_email_enabled": req.weekly_email_enabled}
+
+
+@app.post("/api/user/test-email")
+async def send_test_email(user: dict = Depends(_require_authenticated_user)):
+    from email_service import send_test_email as send_test_email_func
+
+    try:
+        send_test_email_func(user["email"])
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"success": True}
+
+
+@app.post("/api/user/weekly-summary")
+async def send_weekly_summary(user: dict = Depends(_require_authenticated_user)):
+    from email_service import send_weekly_digest_email as send_weekly_summary_email_func
+
+    if not user.get("weekly_email_enabled"):
+        raise HTTPException(
+            status_code=400,
+            detail="Weekly summary is not enabled for this account.",
+        )
+
+    since = datetime.utcnow() - timedelta(days=7)
+    scans = list_scans_since(user["id"], since)
+
+    try:
+        send_weekly_summary_email_func(user["email"], scans, length=7)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"success": True}
 
 
 @app.patch("/api/scan/{scan_id}/notifications")
