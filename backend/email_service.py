@@ -72,3 +72,65 @@ def send_security_alert(
         response.raise_for_status()
     except Exception as exc:
         raise EmailServiceError(f"Failed to send email: {exc}") from exc
+
+
+def send_test_email(to_email: str) -> None:
+    if not RESEND_API_KEY or not EMAIL_FROM:
+        raise EmailServiceError("Email service is not configured.")
+
+    subject = "Nexus Shield AI: Test email"
+    html_body = render_test_email_html()
+    text_body = render_test_email_text()
+
+    payload = {
+        "from": EMAIL_FROM,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.post(url, json=payload, headers=headers, timeout=15.0)
+        response.raise_for_status()
+    except Exception as exc:
+        raise EmailServiceError(f"Failed to send email: {exc}") from exc
+
+
+def send_weekly_digest_email(
+    to_email: str,
+    scans: list[dict[str, Any]],
+    length: int = 7,
+) -> None:
+    if not RESEND_API_KEY or not EMAIL_FROM:
+        raise EmailServiceError("Email service is not configured.")
+
+    subject = f"Nexus Shield AI Weekly Digest: {len(scans)} scans in the last {length} days"
+    html_body = render_weekly_digest_email_html(scans, length)
+    text_body = render_weekly_digest_email_text(scans, length)
+
+    payload = {
+        "from": EMAIL_FROM,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.post(url, json=payload, headers=headers, timeout=15.0)
+        response.raise_for_status()
+    except Exception as exc:
+        raise EmailServiceError(f"Failed to send email: {exc}") from exc
