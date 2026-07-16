@@ -469,7 +469,7 @@ export default function App() {
           <div className="alert-settings-card">
             <div>
               <strong>Email alerts</strong>
-              <p>Receive an email when a new issue appears or your score drops significantly.</p>
+              <p>Receive an email whenever your score changes or a new issue is detected.</p>
             </div>
             <button type="button" className="secondary-btn" onClick={toggleEmailAlerts} disabled={loading}>
               {emailAlertsEnabled ? "Disable alerts" : "Enable alerts"}
