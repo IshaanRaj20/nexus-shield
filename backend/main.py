@@ -15,21 +15,24 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from ai_assistant import answer_question
 from ai_explainer import explain_issues
+from alert_service import send_alert_for_scan
 from auth import create_token, decode_token, hash_password, verify_password
 from db import (
     create_user,
     get_scan,
+    get_latest_scan_for_url,
     get_user_by_email,
     get_user_by_id,
     initialize_db,
     list_scans,
     save_scan,
+    set_user_alert_preferences,
 )
 from report import build_report_text
 from scanner import scan_url
@@ -67,6 +70,10 @@ class ScanRequest(BaseModel):
     consent: bool = Field(
         ...,
         description="Must be true: confirms the user owns this site or has permission to scan it.",
+    )
+    scheduled: bool = Field(
+        False,
+        description="Set true when this scan is part of an automated scheduled check.",
     )
 
 
@@ -109,6 +116,10 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=5, max_length=300)
 
 
+class AlertPreferencesRequest(BaseModel):
+    email_alerts_enabled: bool
+
+
 def _get_user_from_token(authorization: str | None) -> dict | None:
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -131,9 +142,11 @@ def _require_authenticated_user(authorization: str | None = Header(None)) -> dic
 async def health():
     return {"status": "ok"}
 
+
 @app.head("/api/health")
 async def health_head():
     return
+
 
 async def _run_full_scan(req: ScanRequest):
     if not req.consent:
@@ -157,10 +170,13 @@ async def _run_full_scan(req: ScanRequest):
         e = by_id.get(issue.id, {})
         merged_issues.append({
             "id": issue.id,
+            "name": e.get("name", issue.category.title()),
             "severity": issue.severity,
             "category": issue.category,
             "technical": issue.technical,
-            "explanation": e.get("explanation", issue.technical),
+            "meaning": e.get("meaning", e.get("explanation", issue.technical)),
+            "why": e.get("why", "This issue matters for your website's security."),
+            "explanation": e.get("explanation", e.get("meaning", issue.technical)),
             "fix": e.get("fix", "See documentation for this setting."),
         })
 
@@ -190,7 +206,23 @@ async def login(req: LoginRequest):
 
 @app.get("/api/me")
 async def me(user: dict = Depends(_require_authenticated_user)):
-    return {"id": user["id"], "email": user["email"]}
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "email_alerts_enabled": user.get("email_alerts_enabled", False),
+    }
+
+
+@app.patch("/api/user/alerts")
+async def update_alert_preferences(
+    req: AlertPreferencesRequest,
+    user: dict = Depends(_require_authenticated_user),
+):
+    success = set_user_alert_preferences(user["id"], req.email_alerts_enabled)
+    if not success:
+        raise HTTPException(
+            status_code=500, detail="Unable to update alert preferences.")
+    return {"email_alerts_enabled": req.email_alerts_enabled}
 
 
 @app.get("/api/history")
@@ -216,7 +248,11 @@ async def ask(req: AskRequest, user: dict = Depends(_require_authenticated_user)
 
 
 @app.post("/api/scan", response_model=ScanResponse)
-async def scan(req: ScanRequest, authorization: str | None = Header(None)):
+async def scan(
+    req: ScanRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str | None = Header(None),
+):
     result, score_info, merged_issues = await _run_full_scan(req)
     response = ScanResponse(
         url=result.normalized_url,
@@ -236,7 +272,17 @@ async def scan(req: ScanRequest, authorization: str | None = Header(None)):
         scan_data = response.model_dump()
         scan_data["normalized_url"] = result.normalized_url
         scan_data["scanned_at"] = result.scanned_at
+        previous_scan = get_latest_scan_for_url(
+            user["id"], scan_data["normalized_url"])
         saved_id = save_scan(user["id"], scan_data)
+        background_tasks.add_task(
+            send_alert_for_scan,
+            user,
+            scan_data["normalized_url"],
+            scan_data,
+            previous_scan,
+            req.scheduled,
+        )
         response_data = response.model_dump()
         response_data["scan_id"] = saved_id
         return response_data
