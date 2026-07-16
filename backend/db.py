@@ -138,8 +138,22 @@ def save_scan(user_id: int, scan_data: dict[str, Any]) -> int:
 def list_scans(user_id: int) -> list[dict[str, Any]]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM scans WHERE user_id = ? ORDER BY scanned_at DESC LIMIT 50",
-            (user_id,),
+            """
+            SELECT s.*
+            FROM scans s
+            JOIN (
+                SELECT normalized_url, MAX(scanned_at) AS latest_scanned_at
+                FROM scans
+                WHERE user_id = ?
+                GROUP BY normalized_url
+            ) latest
+            ON s.normalized_url = latest.normalized_url
+            AND s.scanned_at = latest.latest_scanned_at
+            WHERE s.user_id = ?
+            ORDER BY s.scanned_at DESC
+            LIMIT 50
+            """,
+            (user_id, user_id),
         ).fetchall()
     history = []
     for row in rows:
