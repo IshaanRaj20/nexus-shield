@@ -98,19 +98,22 @@ function HistoryItem({ scan, onSelect, onToggleNotifications }) {
     <div className="history-card" onClick={() => onSelect(scan)}>
       <div className="history-meta">
         <span className="history-url">{scan.url}</span>
-        <div className="history-meta-right">
-          <button
-            type="button"
-            className={`notification-toggle ${scan.notifications_enabled ? "enabled" : "disabled"}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleNotifications(scan);
-            }}
-          >
-            {scan.notifications_enabled ? "On" : "Off"}
-          </button>
-          <span className={`status-pill ${statusClass(scan.status)}`}>{scan.status}</span>
+        <span className={`status-pill ${statusClass(scan.status)}`}>{scan.status}</span>
+      </div>
+      <div className="notification-row">
+        <div className="notification-label-wrapper">
+          <span className="notification-text">Security alerts for this site</span>
+          <small className="notification-hint">Green = on, red = off</small>
         </div>
+        <label className="notification-switch">
+          <input
+            type="checkbox"
+            checked={scan.notifications_enabled}
+            onChange={() => onToggleNotifications(scan)}
+            onClick={(event) => event.stopPropagation()}
+          />
+          <span className="notification-slider" />
+        </label>
       </div>
       <div className="history-stats">
         <span>{scan.score}/100</span>
@@ -158,14 +161,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetch(`${API_BASE}/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then(setHistory)
-        .catch(() => setHistory([]));
-    }
+    loadHistory();
   }, [isAuthenticated, token]);
 
   useEffect(() => {
@@ -175,6 +171,26 @@ export default function App() {
   }, [user]);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  async function loadHistory() {
+    if (!isAuthenticated) {
+      setHistory([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/history`, {
+        headers: authHeaders,
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load saved scans.");
+      }
+      const data = await res.json();
+      setHistory(data);
+    } catch {
+      setHistory([]);
+    }
+  }
 
   async function runScan(e) {
     e.preventDefault();
@@ -207,7 +223,7 @@ export default function App() {
       }
       setResult(data);
       if (isAuthenticated) {
-        setHistory((prev) => [data, ...prev.filter((item) => item.normalized_url !== data.normalized_url)].slice(0, 8));
+        await loadHistory();
       }
     } catch (err) {
       setError(err.message || "Something went wrong while scanning. Is the backend running?");
