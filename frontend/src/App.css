@@ -93,9 +93,10 @@ body {
 .scan-panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 28px;
+  border-radius: 14px;
+  padding: 24px;
   margin-bottom: 28px;
+  min-height: 0;
 }
 
 .scan-form {
@@ -420,17 +421,20 @@ body {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: minmax(320px, 1.5fr) minmax(280px, 1fr);
   gap: 24px;
+  align-items: start;
+  grid-auto-rows: minmax(min-content, max-content);
 }
 
 .score-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 28px;
+  padding: 24px;
   display: grid;
   gap: 22px;
+  min-height: 0;
 }
 
 .score-topline {
@@ -452,6 +456,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+}
+
+.issue-list {
+  min-height: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .ask-panel {
@@ -460,6 +472,15 @@ body {
   border-radius: 18px;
   padding: 24px;
   margin-top: 12px;
+}
+
+.issue-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.issue-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
 }
 
 .ask-form {
