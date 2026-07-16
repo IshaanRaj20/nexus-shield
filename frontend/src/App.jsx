@@ -93,18 +93,30 @@ function IssueCard({ issue }) {
   );
 }
 
-function HistoryItem({ scan, onSelect }) {
+function HistoryItem({ scan, onSelect, onToggleNotifications }) {
   return (
-    <button type="button" className="history-card" onClick={() => onSelect(scan)}>
+    <div className="history-card" onClick={() => onSelect(scan)}>
       <div className="history-meta">
         <span className="history-url">{scan.url}</span>
-        <span className={`status-pill ${statusClass(scan.status)}`}>{scan.status}</span>
+        <div className="history-meta-right">
+          <button
+            type="button"
+            className={`notification-toggle ${scan.notifications_enabled ? "enabled" : "disabled"}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleNotifications(scan);
+            }}
+          >
+            {scan.notifications_enabled ? "On" : "Off"}
+          </button>
+          <span className={`status-pill ${statusClass(scan.status)}`}>{scan.status}</span>
+        </div>
       </div>
       <div className="history-stats">
         <span>{scan.score}/100</span>
         <span>{scan.issue_count} issues</span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -277,6 +289,36 @@ export default function App() {
       const userData = await userRes.json();
       setUser(userData);
       setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleSiteNotifications(scan) {
+    if (!scan.id) {
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/scan/${scan.id}/notifications`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ notifications_enabled: !scan.notifications_enabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to update notification setting.");
+      }
+      setHistory((prev) => prev.map((item) => item.id === scan.id ? { ...item, notifications_enabled: data.notifications_enabled } : item));
+      if (result?.scan_id === scan.id) {
+        setResult((prev) => prev ? { ...prev, notifications_enabled: data.notifications_enabled } : prev);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -483,7 +525,7 @@ export default function App() {
           <div className="section-label">Saved scans</div>
           <div className="history-list">
             {history.map((scan) => (
-              <HistoryItem key={scan.id} scan={scan} onSelect={loadHistoryItem} />
+              <HistoryItem key={scan.id} scan={scan} onSelect={loadHistoryItem} onToggleNotifications={toggleSiteNotifications} />
             ))}
           </div>
         </section>
