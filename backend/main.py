@@ -32,6 +32,7 @@ from db import (
     initialize_db,
     list_scans,
     save_scan,
+    set_scan_notifications,
     set_user_alert_preferences,
 )
 from report import build_report_text
@@ -88,6 +89,7 @@ class ScanResponse(BaseModel):
     headers_present: list[str]
     headers_missing: list[str]
     issues: list[dict]
+    notifications_enabled: bool | None = None
     scan_id: int | None = None
     error: str | None = None
 
@@ -118,6 +120,10 @@ class AskRequest(BaseModel):
 
 class AlertPreferencesRequest(BaseModel):
     email_alerts_enabled: bool
+
+
+class ScanNotificationRequest(BaseModel):
+    notifications_enabled: bool
 
 
 def _get_user_from_token(authorization: str | None) -> dict | None:
@@ -225,6 +231,19 @@ async def update_alert_preferences(
     return {"email_alerts_enabled": req.email_alerts_enabled}
 
 
+@app.patch("/api/scan/{scan_id}/notifications")
+async def update_scan_notifications(
+    scan_id: int,
+    req: ScanNotificationRequest,
+    user: dict = Depends(_require_authenticated_user),
+):
+    success = set_scan_notifications(
+        scan_id, user["id"], req.notifications_enabled)
+    if not success:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    return {"notifications_enabled": req.notifications_enabled}
+
+
 @app.get("/api/history")
 async def history(user: dict = Depends(_require_authenticated_user)):
     return list_scans(user["id"])
@@ -274,6 +293,11 @@ async def scan(
         scan_data["scanned_at"] = result.scanned_at
         previous_scan = get_latest_scan_for_url(
             user["id"], scan_data["normalized_url"])
+        scan_data["notifications_enabled"] = (
+            previous_scan["notifications_enabled"]
+            if previous_scan is not None
+            else True
+        )
         saved_id = save_scan(user["id"], scan_data)
         background_tasks.add_task(
             send_alert_for_scan,
@@ -285,6 +309,7 @@ async def scan(
         )
         response_data = response.model_dump()
         response_data["scan_id"] = saved_id
+        response_data["notifications_enabled"] = scan_data["notifications_enabled"]
         return response_data
     return response
 

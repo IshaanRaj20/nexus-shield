@@ -71,6 +71,8 @@ def send_alert_for_scan(
         return
     if not user.get("email"):
         return
+    if not current_scan.get("notifications_enabled", True):
+        return
 
     current_score = int(current_scan.get("score", 0))
     previous_score = int(previous_scan["score"]) if previous_scan else None

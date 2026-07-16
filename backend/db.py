@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS scans (
     user_id INTEGER NOT NULL,
     url TEXT NOT NULL,
     normalized_url TEXT NOT NULL,
+    notifications_enabled INTEGER NOT NULL DEFAULT 1,
     score INTEGER NOT NULL,
     status TEXT NOT NULL,
     issue_count INTEGER NOT NULL,
@@ -56,6 +57,14 @@ def initialize_db() -> None:
         if "email_alerts_enabled" not in existing_columns:
             conn.execute(
                 "ALTER TABLE users ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+
+        scan_columns = [row["name"] for row in conn.execute(
+            "PRAGMA table_info(scans)").fetchall()]
+        if "notifications_enabled" not in scan_columns:
+            conn.execute(
+                "ALTER TABLE scans ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1"
             )
             conn.commit()
 
@@ -121,11 +130,12 @@ def set_user_alert_preferences(user_id: int, email_alerts_enabled: bool) -> bool
 def save_scan(user_id: int, scan_data: dict[str, Any]) -> int:
     with _connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO scans (user_id, url, normalized_url, score, status, issue_count, https_enabled, response_time_ms, headers_present, headers_missing, issues, error, scanned_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO scans (user_id, url, normalized_url, notifications_enabled, score, status, issue_count, https_enabled, response_time_ms, headers_present, headers_missing, issues, error, scanned_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 user_id,
                 scan_data["url"],
                 scan_data["normalized_url"],
+                1 if scan_data.get("notifications_enabled", True) else 0,
                 scan_data["score"],
                 scan_data["status"],
                 scan_data["issue_count"],
@@ -168,6 +178,7 @@ def list_scans(user_id: int) -> list[dict[str, Any]]:
             "id": row["id"],
             "url": row["url"],
             "normalized_url": row["normalized_url"],
+            "notifications_enabled": bool(row["notifications_enabled"]),
             "score": row["score"],
             "status": row["status"],
             "issue_count": row["issue_count"],
@@ -194,6 +205,7 @@ def get_scan(scan_id: int, user_id: int) -> dict[str, Any] | None:
         "id": row["id"],
         "url": row["url"],
         "normalized_url": row["normalized_url"],
+        "notifications_enabled": bool(row["notifications_enabled"]),
         "score": row["score"],
         "status": row["status"],
         "issue_count": row["issue_count"],
@@ -208,6 +220,16 @@ def get_scan(scan_id: int, user_id: int) -> dict[str, Any] | None:
     }
 
 
+def set_scan_notifications(scan_id: int, user_id: int, enabled: bool) -> bool:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE scans SET notifications_enabled = ? WHERE id = ? AND user_id = ?",
+            (1 if enabled else 0, scan_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def get_latest_scan_for_url(user_id: int, normalized_url: str) -> dict[str, Any] | None:
     with _connect() as conn:
         row = conn.execute(
@@ -220,6 +242,7 @@ def get_latest_scan_for_url(user_id: int, normalized_url: str) -> dict[str, Any]
         "id": row["id"],
         "url": row["url"],
         "normalized_url": row["normalized_url"],
+        "notifications_enabled": bool(row["notifications_enabled"]),
         "score": row["score"],
         "status": row["status"],
         "issue_count": row["issue_count"],
@@ -246,6 +269,7 @@ def get_latest_scan(user_id: int) -> dict[str, Any] | None:
         "id": row["id"],
         "url": row["url"],
         "normalized_url": row["normalized_url"],
+        "notifications_enabled": bool(row["notifications_enabled"]),
         "score": row["score"],
         "status": row["status"],
         "issue_count": row["issue_count"],
