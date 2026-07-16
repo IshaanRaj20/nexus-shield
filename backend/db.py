@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    email_alerts_enabled INTEGER NOT NULL DEFAULT 0
+    email_alerts_enabled INTEGER NOT NULL DEFAULT 0,
+    weekly_email_enabled INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS scans (
@@ -59,6 +60,11 @@ def initialize_db() -> None:
                 "ALTER TABLE users ADD COLUMN email_alerts_enabled INTEGER NOT NULL DEFAULT 0"
             )
             conn.commit()
+        if "weekly_email_enabled" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN weekly_email_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
 
         scan_columns = [row["name"] for row in conn.execute(
             "PRAGMA table_info(scans)").fetchall()]
@@ -73,14 +79,24 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def create_user(email: str, password_hash: str, email_alerts_enabled: bool = False) -> dict[str, Any]:
+def create_user(
+    email: str,
+    password_hash: str,
+    email_alerts_enabled: bool = False,
+    weekly_email_enabled: bool = False,
+) -> dict[str, Any]:
     normalized_email = _normalize_email(email)
     now = datetime.now().isoformat()
     with _connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO users (email, password_hash, created_at, email_alerts_enabled) VALUES (?, ?, ?, ?)",
-            (normalized_email, password_hash, now,
-             1 if email_alerts_enabled else 0),
+            "INSERT INTO users (email, password_hash, created_at, email_alerts_enabled, weekly_email_enabled) VALUES (?, ?, ?, ?, ?)",
+            (
+                normalized_email,
+                password_hash,
+                now,
+                1 if email_alerts_enabled else 0,
+                1 if weekly_email_enabled else 0,
+            ),
         )
         conn.commit()
         user_id = cursor.lastrowid
@@ -89,6 +105,7 @@ def create_user(email: str, password_hash: str, email_alerts_enabled: bool = Fal
             "email": normalized_email,
             "created_at": now,
             "email_alerts_enabled": email_alerts_enabled,
+            "weekly_email_enabled": weekly_email_enabled,
         }
 
 
@@ -102,6 +119,7 @@ def get_user_by_email(email: str) -> dict[str, Any] | None:
     return {
         **dict(row),
         "email_alerts_enabled": bool(row["email_alerts_enabled"]),
+        "weekly_email_enabled": bool(row["weekly_email_enabled"]),
     }
 
 
@@ -114,6 +132,7 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
     return {
         **dict(row),
         "email_alerts_enabled": bool(row["email_alerts_enabled"]),
+        "weekly_email_enabled": bool(row["weekly_email_enabled"]),
     }
 
 
@@ -122,6 +141,16 @@ def set_user_alert_preferences(user_id: int, email_alerts_enabled: bool) -> bool
         cursor = conn.execute(
             "UPDATE users SET email_alerts_enabled = ? WHERE id = ?",
             (1 if email_alerts_enabled else 0, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def set_user_weekly_preferences(user_id: int, weekly_email_enabled: bool) -> bool:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE users SET weekly_email_enabled = ? WHERE id = ?",
+            (1 if weekly_email_enabled else 0, user_id),
         )
         conn.commit()
         return cursor.rowcount > 0
@@ -150,6 +179,35 @@ def save_scan(user_id: int, scan_data: dict[str, Any]) -> int:
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def list_scans_since(user_id: int, since: datetime) -> list[dict[str, Any]]:
+    recent_scans = []
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM scans WHERE user_id = ? ORDER BY scanned_at DESC",
+            (user_id,),
+        ).fetchall()
+    for row in rows:
+        scanned_at = datetime.fromisoformat(row["scanned_at"])
+        if scanned_at >= since:
+            recent_scans.append({
+                "id": row["id"],
+                "url": row["url"],
+                "normalized_url": row["normalized_url"],
+                "notifications_enabled": bool(row["notifications_enabled"]),
+                "score": row["score"],
+                "status": row["status"],
+                "issue_count": row["issue_count"],
+                "https_enabled": bool(row["https_enabled"]),
+                "response_time_ms": row["response_time_ms"],
+                "headers_present": json.loads(row["headers_present"]),
+                "headers_missing": json.loads(row["headers_missing"]),
+                "issues": json.loads(row["issues"]),
+                "error": row["error"],
+                "scanned_at": row["scanned_at"],
+            })
+    return recent_scans
 
 
 def list_scans(user_id: int) -> list[dict[str, Any]]:
