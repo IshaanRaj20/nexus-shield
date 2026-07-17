@@ -188,8 +188,13 @@ def list_scans_since(user_id: int, since: datetime) -> list[dict[str, Any]]:
             "SELECT * FROM scans WHERE user_id = ? ORDER BY scanned_at DESC",
             (user_id,),
         ).fetchall()
+
     for row in rows:
         scanned_at = datetime.fromisoformat(row["scanned_at"])
+
+        if scanned_at.tzinfo is not None:
+            scanned_at = scanned_at.replace(tzinfo=None)
+
         if scanned_at >= since:
             recent_scans.append({
                 "id": row["id"],
@@ -207,6 +212,7 @@ def list_scans_since(user_id: int, since: datetime) -> list[dict[str, Any]]:
                 "error": row["error"],
                 "scanned_at": row["scanned_at"],
             })
+
     return recent_scans
 
 
