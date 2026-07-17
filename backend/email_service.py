@@ -108,11 +108,15 @@ def send_test_email(to_email: str) -> None:
     }
 
     try:
-        response = httpx.post(url, json=payload, headers=headers, timeout=15.0)
-        response.raise_for_status()
+            response = httpx.post(url, json=payload, headers=headers, timeout=15.0)
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+            print("RESEND ERROR:", exc.response.text)
+            raise EmailServiceError(
+                f"Resend returned {exc.response.status_code}: {exc.response.text}"
+            ) from exc
     except Exception as exc:
-        raise EmailServiceError(f"Failed to send email: {exc}") from exc
-
+            raise EmailServiceError(f"Failed to send email: {exc}") from exc
 
 def send_weekly_digest_email(
     to_email: str,
