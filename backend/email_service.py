@@ -5,7 +5,14 @@ from typing import Any
 
 import httpx
 
-from email_templates import render_alert_email_html, render_alert_email_text
+from email_templates import (
+    render_alert_email_html,
+    render_alert_email_text,
+    render_test_email_html,
+    render_test_email_text,
+    render_weekly_digest_email_html,
+    render_weekly_digest_email_text,
+)
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
