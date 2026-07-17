@@ -69,6 +69,7 @@ The goal is to help developers, businesses, and website owners make better secur
 
 * React
 * Vite
+* CSS
 * Modern responsive UI
 
 ### Backend
