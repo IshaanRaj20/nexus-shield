@@ -77,6 +77,10 @@ def send_security_alert(
     try:
         response = httpx.post(url, json=payload, headers=headers, timeout=15.0)
         response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise EmailServiceError(
+            f"Resend returned {exc.response.status_code}: {exc.response.text}"
+        ) from exc
     except Exception as exc:
         raise EmailServiceError(f"Failed to send email: {exc}") from exc
 
