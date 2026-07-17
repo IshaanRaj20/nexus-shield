@@ -1,96 +1,161 @@
-# Nexus Shield AI — v1
+# 🛡️ Nexus Shield AI
 
-Phase one: a website scanner that checks HTTPS, TLS, security headers, and
-response time, scores the result out of 100, explains findings in plain
-English via Claude, and generates a downloadable report.
+**AI-powered website security analysis platform**
 
-This is intentionally scoped to **passive, read-only checks only** — no
-port scanning, no exploit probing, no login attempts. It reads what a
-server already sends back in a normal HTTP response.
+Nexus Shield AI helps website owners understand their security posture by scanning websites, identifying potential security issues, explaining risks, and providing actionable recommendations.
 
-## Structure
+🌐 **Live Website:** https://shield.zenithish.com
 
-```
-nexus-shield/
-├── backend/          FastAPI app: scanning, scoring, AI explanations, reports
-│   ├── main.py        API endpoints
-│   ├── scanner.py      Core scan logic (HTTPS, TLS, headers, timing)
-│   ├── scoring.py       0-100 scoring rubric
-│   ├── ai_explainer.py  Claude-powered plain-English explanations
-│   ├── report.py        Plain-text report builder
-│   ├── requirements.txt
-│   └── .env.example
-└── frontend/         React (Vite) dashboard
-    ├── src/App.jsx     Scan form, gauge, issue cards, report download
-    ├── src/App.css
-    └── index.html
-```
+---
 
-## Running it
+## 🚀 About Nexus Shield AI
 
-### 1. Backend
+Nexus Shield AI is a security intelligence platform designed to make website security easier to understand.
 
-```bash
-cd backend
-python3 -m venv venv && source venv/bin/activate   # optional but recommended
-pip install -r requirements.txt
-cp .env.example .env
-# edit .env and add your ANTHROPIC_API_KEY (get one at console.anthropic.com)
-uvicorn main:app --reload --port 8000
-```
+Instead of only showing technical problems, Nexus Shield AI explains:
 
-The API is now live at `http://localhost:8000`. Without an API key set, the
-app still works — it falls back to pre-written plain-English explanations
-instead of AI-generated ones.
+* What the issue means
+* Why it matters
+* How it can be improved
 
-### 2. Frontend
+The goal is to help developers, businesses, and website owners make better security decisions.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+---
 
-Open `http://localhost:5173`. The dev server proxies `/api/*` to the
-backend on port 8000 (see `vite.config.js`).
+## ✨ Features
 
-## How scoring works
+### 🔍 Website Security Scanning
 
-Every scan starts at 100 points. Points are subtracted per issue found:
+* Analyze website security settings
+* Check important security headers
+* Evaluate HTTPS configuration
+* Generate a security score
 
-| Issue                                   | Points lost |
-|------------------------------------------|-------------|
-| No HTTPS enforced                         | 25          |
-| Invalid/expired TLS certificate           | 20          |
-| TLS certificate expiring within 14 days   | 10          |
-| Missing Content-Security-Policy           | 15          |
-| Missing Strict-Transport-Security (HSTS)  | 12          |
-| Missing X-Content-Type-Options            | 8           |
-| Missing X-Frame-Options                   | 8           |
-| Missing Referrer-Policy                   | 5           |
-| Missing Permissions-Policy                | 5           |
-| Server version disclosed in headers       | 5           |
-| Slow response time (>3s)                  | 5           |
+### 🧠 AI Security Explanations
 
-90+ Excellent · 75-89 Good · 50-74 Needs Improvement · <50 Poor
+* Converts technical findings into understandable explanations
+* Explains the impact of security issues
+* Provides recommended fixes
 
-This rubric is intentionally simple for v1 — tune the weights in
-`scoring.py` / `scanner.py` as you learn what matters most to real users.
+### 👤 User Accounts
 
-## What's deliberately NOT in v1
+* Secure account authentication
+* Personal dashboards
+* User-specific scan history
 
-- No active vulnerability scanning or exploitation
-- No user accounts / auth (add Firebase Auth in phase 2)
-- No saved report history (add Firebase Firestore in phase 2)
-- No scheduled/recurring scans
-- No rate limiting or abuse protection (add before any public deploy —
-  scanning arbitrary URLs on demand is an easy abuse vector)
+### 📊 Scan History
 
-## Next milestones (phase 2+)
+* Save previous security scans
+* View past results
+* Track website security improvements over time
 
-1. Firebase Auth + Firestore: save scan history per user, shareable report links
-2. Rate limiting + consent audit log (who scanned what, when)
-3. Expand checks: cookie flags (Secure/HttpOnly/SameSite), mixed content,
-   subresource integrity, open redirect basics
-4. Score trend over time (re-scan and show improvement)
-5. Email/webhook alert when a previously-good site's score drops
+### 🚨 Security Alerts
+
+* Email notifications for important scan results
+* Per-scan notification controls
+* Custom alert preferences
+
+### 📧 Weekly Security Reports
+
+* Automated weekly security summaries
+* Email reports showing recent scan activity
+* Security insights delivered directly to users
+
+---
+
+## 🏗️ Technology Stack
+
+### Frontend
+
+* React
+* Vite
+* Modern responsive UI
+
+### Backend
+
+* FastAPI
+* Python
+* REST API architecture
+
+### Database
+
+* SQLite-based storage system
+
+### Deployment
+
+* Frontend hosted at:
+
+  * `shield.zenithish.com`
+
+* Backend hosted with:
+
+  * Render
+
+### Email System
+
+* Resend API
+* Custom verified email domain
+
+---
+
+## 🔐 Security
+
+Nexus Shield AI includes:
+
+* Secure password hashing
+* Token-based authentication
+* Protected API endpoints
+* User-specific data access
+
+---
+
+## 📈 Development Roadmap
+
+### ✅ V1 — MVP
+
+* Website scanning
+* Security scoring
+* AI explanations
+* Basic dashboard
+
+### ✅ V1.5 — User Experience Update
+
+* Scan history
+* Better UI
+* Improved reports
+
+### ✅ V1.7 — Email Intelligence Update
+
+* Test emails
+* Security alerts
+* Weekly security summaries
+* Verified email sending
+
+### 🔜 V2 — Platform Update
+
+Planned features:
+
+* More advanced dashboards
+* Improved account management
+* Expanded project organization
+* More powerful security tracking
+
+### 🔜 V3 — Intelligence Update
+
+Planned features:
+
+* Advanced AI security assistant
+* Smarter recommendations
+* Deeper security analysis
+
+---
+
+## 🌎 Vision
+
+Nexus Shield AI is part of the larger Nexus Core vision: building intelligent technology solutions that make digital systems safer, smarter, and more accessible.
+
+---
+
+## 📄 License
+
+This project is currently under development.
